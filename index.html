@@ -112,47 +112,134 @@
             showPanel('evaluation');
         });
     </script>
+</head>
+<body class="antialiased">
+    <!-- NUEVO SCRIPT DE PRUEBA: ESTO DEBERÍA APARECER SIEMPRE EN LA CONSOLA -->
+    <script>
+        console.log("¡SCRIPT BÁSICO EN BODY FUNCIONANDO!");
+    </script>
+    <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-7xl">
+        <header class="text-center mb-10">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800">Herramienta de Evaluación de Proyectos</h1>
+            <p class="text-lg text-gray-600 mt-2">Festival Agripina - Categoría Estudiantes</p>
+            <p id="userIdDisplay" class="text-sm text-gray-500 mt-2">Cargando ID de usuario...</p>
+        </header>
+
+        <div class="bg-white/60 backdrop-blur-sm p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200/50 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Seleccionar y Editar Trabajo</h2>
+            <div class="flex flex-col sm:flex-row items-center gap-4 mb-4">
+                <label for="workSelector" class="text-lg font-semibold text-gray-700">Trabajo:</label>
+                <select id="workSelector" class="flex-grow px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    <!-- Options will be populated by JS -->
+                </select>
+            </div>
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label for="workCustomNameInput" class="block text-sm font-medium text-gray-700 mb-1">Nombre del Trabajo:</label>
+                    <input type="text" id="workCustomNameInput" placeholder="Ej: Proyecto Final Publicidad" class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                    <label for="ideaNameInput" class="block text-sm font-medium text-gray-700 mb-1">Nombre de la Idea:</label>
+                    <input type="text" id="ideaNameInput" placeholder="Ej: Campaña 'EcoFuturo'" class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                    <label for="brandNameInput" class="block text-sm font-medium text-gray-700 mb-1">Marca:</label>
+                    <input type="text" id="brandNameInput" placeholder="Ej: GreenTech Solutions" class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+            </div>
+            <button id="saveWorkDetailsBtn" class="w-full px-6 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors shadow-md">
+                Guardar Detalles del Trabajo
+            </button>
+            <p id="workDetailsStatus" class="mt-4 text-center text-sm text-gray-600"></p>
+        </div>
+
+        <nav class="flex justify-center space-x-4 mb-10">
+            <button id="showEvaluation" class="px-6 py-3 rounded-xl bg-blue-700 text-white font-semibold hover:bg-blue-800 transition-colors shadow-md">
+                Mi Votación
+            </button>
+            <button id="showGlobalResults" class="px-6 py-3 rounded-xl bg-gray-200 text-gray-700 font-semibold hover:bg-gray-300 transition-colors shadow-md">
+                Resultados Globales
+            </button>
+        </nav>
+
+        <main>
+            <div id="evaluationPanel" class="bg-white/60 backdrop-blur-sm p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200/50 mb-12">
+                <h2 class="text-2xl font-bold text-gray-800 mb-2">Bienvenido, profesorado</h2>
+                <p class="text-gray-700 leading-relaxed">
+                    Esta herramienta interactiva está diseñada para facilitar la evaluación de las piezas de los estudiantes según los criterios oficiales del Festival Agripina. Utilice los controles deslizantes para puntuar cada categoría. El gráfico y el resumen se actualizarán en tiempo real para proporcionar una visión clara y comparable de cada proyecto, ayudando a tomar una decisión informada para la selección final.
+                </p>
+            </div>
+
+            <div id="evaluationContent" class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+                <div id="evaluation-criteria" class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200/50">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-6">Panel de Evaluación</h3>
+                    <!-- Criteria will be rendered here by JS -->
+                    <button id="saveVoteBtn" class="mt-8 w-full px-6 py-3 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors shadow-md">
+                        Guardar Votación
+                    </button>
+                    <p id="saveStatus" class="mt-4 text-center text-sm text-gray-600"></p>
+                </div>
+
+                <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200/50 flex flex-col justify-center items-center">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-4 text-center">Perfil Visual de Mi Votación</h3>
+                    <div class="chart-container">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                    <div class="mt-6 text-center bg-blue-50 p-6 rounded-xl w-full">
+                        <h4 class="text-lg font-semibold text-gray-700">Mi Puntuación Total</h4>
+                        <p id="totalScore" class="text-5xl font-bold text-blue-800 mt-2">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="globalResultsContent" class="hidden mt-12 bg-white p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200/50">
+                <h3 class="text-2xl font-bold text-gray-800 mb-6 text-center">Resultados Globales de Votaciones</h3>
+                <p class="text-gray-700 leading-relaxed mb-8 text-center">
+                    Aquí puedes ver el promedio de las puntuaciones de todos los profesores para el trabajo seleccionado. Este gráfico se actualiza en tiempo real a medida que se registran nuevas votaciones.
+                </p>
+                <div class="bar-chart-container">
+                    <canvas id="barChart"></canvas>
+                </div>
+                <div class="mt-6 text-center bg-purple-50 p-6 rounded-xl w-full">
+                    <h4 class="text-lg font-semibold text-gray-700">Puntuación Media Global</h4>
+                    <p id="globalAverageScore" class="text-5xl font-bold text-purple-800 mt-2">0.0</p>
+                    <p class="text-gray-600 mt-2">Basado en <span id="numVotes">0</span> votaciones</p>
+                </div>
+            </div>
+        </main>
+         <footer class="text-center py-10 mt-8">
+            <p class="text-gray-500">Diseñado como herramienta de apoyo para la selección de piezas del Festival Agripina.</p>
+            <div class="mt-4 text-gray-600 space-y-2">
+                <p>Ejemplos de ganadores y piezas inscritas:</p>
+                <ul class="list-none p-0 space-y-1">
+                    <li>
+                        <a href="https://premiosagripina.es/coca-cola-disfruta-de-lo-autentico/" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:text-blue-900 font-semibold underline">
+                            Coca-Cola: Disfruta de lo auténtico
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://premiosagripina.es/category/categorias-profesionales/estudiante/" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:text-blue-900 font-semibold underline">
+                            Categoría Estudiante - Ejemplos Adicionales
+                        </a>
+                    </li>
+                     <li>
+                        <a href="https://premiosagripina.es/festival-agripina-premios-2023/" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:text-blue-900 font-semibold underline">
+                            Festival Agripina Premios 2023
+                        </a>
+                    </li>
+                     <li>
+                        <a href="https://premiosagripina.es/ganadores-2022/" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:text-blue-900 font-semibold underline">
+                            Ganadores 2022
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://elenacasasespejo.com/toysagainstanxiety/" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:text-blue-900 font-semibold underline">
+                            Toys Against Anxiety
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </footer>
+    </div>
 </body>
 </html>
-```
-
-### **Pasos Cruciales a Seguir Después de Actualizar el Código:**
-
-1.  **Guarda los cambios en GitHub:** Asegúrate de que el contenido de tu `index.html` en GitHub sea **exactamente** el del Canvas actualizado.
-2.  **Espera unos minutos:** Dale tiempo a GitHub Pages para que despliegue los cambios.
-3.  **Abre tu página web y las herramientas de desarrollador:**
-    * Ve a `https://novoanandez.github.io/evaluador/` en tu navegador.
-    * Haz clic derecho en cualquier parte de la página y selecciona **"Inspeccionar"** o **"Inspeccionar elemento"**.
-4.  **Ve a la pestaña "Network" (Red):**
-    * **Asegúrate de que la opción "Disable cache" (Deshabilitar caché) esté marcada.**
-    * **Recarga la página forzadamente:** `Ctrl + Shift + R` (Windows/Linux) o `Cmd + Shift + R` (macOS).
-    * Observa la lista de archivos. **¿Hay alguna entrada en rojo?** Si la hay, por favor, copia y pega la línea completa del error (incluyendo el "Status" como `404`, `CORS`, etc.).
-5.  **Vuelve a la pestaña "Console" (Consola):**
-    * Después de revisar "Network", cambia a "Console".
-    * **Asegúrate de que no haya filtros aplicados** (selecciona "All" o "Verbose").
-    * **¡Copia y pega aquí TODO el contenido de la consola!** Incluso si solo ves "SCRIPT MODULE STARTING...", eso ya es una pista. Si aparece algún error en rojo, es lo más importante.
-
-**Además, por favor, re-confirma estos dos puntos en Firebase, ya que son la causa más común de problemas de autenticación/guardado:**
-
-* **1. Autenticación Anónima Habilitada:**
-    * [Consola de Firebase](https://console.firebase.google.com/) > Tu proyecto > **Build > Authentication > Sign-in method**. Asegúrate de que **"Anonymous"** esté **habilitado**.
-* **2. Reglas de Seguridad de Firestore Correctas:**
-    * [Consola de Firebase](https://console.firebase.google.com/) > Tu proyecto > **Build > Firestore Database > Rules**. Asegúrate de que sean exactamente estas:
-        ```firestore
-        rules_version = '2';
-        service cloud.firestore {
-          match /databases/{database}/documents {
-            // Permite lectura y escritura a cualquier usuario autenticado en la colección agripina_work_details
-            match /artifacts/{appId}/public/data/agripina_work_details/{document=**} {
-              allow read, write: if request.auth != null;
-            }
-            // Permite lectura y escritura a cualquier usuario autenticado en las subcolecciones de agripina_votes_by_work
-            match /artifacts/{appId}/public/data/agripina_votes_by_work/{workId}/votes/{userId} {
-              allow read, write: if request.auth != null;
-            }
-          }
-        }
-        ```
-    * Haz clic en **"Publish"** si haces cambios.
-
-Con esta nueva información de la consola y la red, estoy seguro de que podremos identificar el problema. ¡No te des por venci
