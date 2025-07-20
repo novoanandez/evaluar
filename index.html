@@ -753,7 +753,876 @@
                             display: false
                         },
                         tooltip: {
-                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    label += Math.round(context.parsed.x * 100) / 100;
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function showPanel(panelId) {
+            if (panelId === 'evaluation') {
+                evaluationContent.classList.remove('hidden');
+                globalResultsContent.classList.add('hidden');
+                showEvaluationBtn.classList.add('bg-blue-700', 'text-white');
+                showEvaluationBtn.classList.remove('bg-gray-200', 'text-gray-700');
+                showGlobalResultsBtn.classList.remove('bg-blue-700', 'text-white');
+                showGlobalResultsBtn.classList.add('bg-gray-200', 'text-gray-700');
+            } else {
+                evaluationContent.classList.add('hidden');
+                globalResultsContent.classList.remove('hidden');
+                showGlobalResultsBtn.classList.add('bg-blue-700', 'text-white');
+                showGlobalResultsBtn.classList.remove('bg-gray-200', 'text-gray-700');
+                showEvaluationBtn.classList.remove('bg-blue-700', 'text-white');
+                showEvaluationBtn.classList.add('bg-gray-200', 'text-gray-700');
+            }
+        }
+
+        function populateWorkSelector() {
+            workSelector.innerHTML = ''; // Clear existing options
+            worksData.forEach(work => {
+                const option = document.createElement('option');
+                option.value = work.id;
+                option.textContent = work.customName || work.name; // Use customName if available
+                workSelector.appendChild(option);
+            });
+            workSelector.value = currentWorkId; // Set initial selection
+        }
+
+        function onWorkSelectorChange() {
+            currentWorkId = workSelector.value;
+            loadUserVote(); // Load user's vote for the new work
+            loadWorkDetails(); // Load details for the new work
+            setupGlobalResultsListener(); // Re-setup listener for the new work
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderCriteria();
+            createRadarChart();
+            createBarChart();
+            
+            workSelector.addEventListener('change', onWorkSelectorChange);
+            saveVoteBtn.addEventListener('click', saveVote);
+            saveWorkDetailsBtn.addEventListener('click', saveWorkDetails); // New event listener
+            showEvaluationBtn.addEventListener('click', () => showPanel('evaluation'));
+            showGlobalResultsBtn.addEventListener('click', () => showPanel('globalResults'));
+
+            document.addEventListener('firebaseAuthReady', () => {
+                fetchAndPopulateAllWorkDetails(); // Fetch all work details first
+                setupGlobalResultsListener(); // Setup initial global results listener for the default work
+                setupWorkDetailsListener(); // Setup listener for work details changes
+            });
+
+            showPanel('evaluation'); // Default to evaluation panel
+        });
+    </script>
+</body>
+</html>
+```
+
+Entiendo perfectamente tu frustración después de tantos intentos. Es muy desmotivador cuando las cosas no salen como esperamos. No te preocupes, estoy aquí para ayudarte a encontrar la solución.
+
+He revisado el código que me has proporcionado del Canvas "Herramienta de Evaluación - Festival Agripina (Versión Final Corregida)" y he encontrado **otro pequeño error de sintaxis** que, aunque parezca insignificante, es suficiente para detener la ejecución de JavaScript y, por lo tanto, impedir que la página funcione correctamente.
+
+**El problema está en la definición de las `callbacks` del `tooltip` en la función `createBarChart()`:**
+
+**Tu código actual (fragmento):**
+```javascript
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                                label: function(context) { // <-- FALTA 'callbacks:' AQUÍ
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    label += Math.round(context.parsed.x * 100) / 100;
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+```
+
+**Explicación del error:**
+Dentro de la configuración del `tooltip` de Chart.js, la propiedad `label` (que es una función) debe estar anidada dentro de una propiedad llamada `callbacks`. Al faltar `callbacks:`, JavaScript interpreta `label` directamente como una propiedad del `tooltip` en lugar de una función de callback, lo que causa un error de sintaxis y detiene la ejecución del script.
+
+**La Solución:**
+Necesitamos añadir `callbacks:` antes de la definición de la función `label`.
+
+Aquí tienes el código HTML completo y corregido. Por favor, **copia este código completo** y úsalo para reemplazar el contenido de tu archivo `agripina-evaluador.html` en GitHub.
+
+
+```html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Herramienta de Evaluación - Festival Agripina</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, query, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- INSERTA TU CONFIGURACIÓN DE FIREBASE AQUÍ ---
+        // ¡MUY IMPORTANTE! Reemplaza TODOS los valores de "TU_..." con los de tu proyecto de Firebase.
+        // Puedes encontrarlos en la Consola de Firebase -> Configuración del proyecto (el icono de la tuerca) -> Tus apps -> Web.
+        // Copia el objeto 'firebaseConfig' y pégalo aquí.
+        const firebaseConfig = {
+          apiKey: "AIzaSyA0hy5PZwHw9hdkVnPqLNkztGeghk-j1s4", 
+          authDomain: "agripina-evaluador.firebaseapp.com",
+          projectId: "agripina-evaluador",
+          storageBucket: "agripina-evaluador.firebasestorage.app",
+          messagingSenderId: "651959986582",
+          appId: "1:651959986582:web:beab2a64a4553b9c31d5b7"
+        };
+        const appId = firebaseConfig.projectId; // Usamos el projectId como appId para la ruta de Firestore
+
+        const app = initializeApp(firebaseConfig);
+        window.db = getFirestore(app);
+        window.auth = getAuth(app);
+        window.userId = null;
+        window.isAuthReady = false;
+        window.appId = appId; // Make appId globally accessible
+
+        onAuthStateChanged(window.auth, async (user) => {
+            if (user) {
+                window.userId = user.uid;
+            } else {
+                // Si no hay usuario (ej. al abrir el enlace compartido), inicia sesión anónimamente
+                try {
+                    await signInAnonymously(window.auth);
+                    window.userId = window.auth.currentUser.uid;
+                } catch (error) {
+                    console.error("Error al iniciar sesión anónimamente:", error);
+                }
+            }
+            window.isAuthReady = true;
+            document.getElementById('userIdDisplay').textContent = `Tu ID: ${window.userId}`;
+            document.dispatchEvent(new CustomEvent('firebaseAuthReady'));
+        });
+
+        window.getFirestore = getFirestore;
+        window.doc = doc;
+        window.setDoc = setDoc;
+        window.onSnapshot = onSnapshot;
+        window.collection = collection;
+        window.query = query;
+        window.getDocs = getDocs;
+        window.getDoc = getDoc;
+    </script>
+    <!-- Chosen Palette: Academic Neutral -->
+    <!-- Application Structure Plan: He diseñado una herramienta de evaluación interactiva de una sola página con dos secciones principales: "Mi Votación" y "Resultados Globales". Se ha añadido un selector de "Trabajo" para elegir entre 16 proyectos a evaluar, junto con campos editables para el "Nombre del Trabajo", "Nombre de la Idea" y "Marca". El panel "Mi Votación" permite a cada profesor puntuar los 5 criterios mediante sliders, actualizando un gráfico de radar individual y una puntuación total. Un botón "Guardar Votación" persiste estos datos en Firestore, asociados al trabajo y al usuario. Un nuevo botón "Guardar Detalles del Trabajo" permite guardar la información editable del trabajo, que también se persiste en Firestore y se actualiza en tiempo real para todos. La sección de "Results Globales" muestra un gráfico de barras con las puntuaciones promedio de todos los profesores para el trabajo seleccionado, junto con una puntuación media general, todo actualizado en tiempo real. Esta estructura fue elegida para transformar un proceso de evaluación pasiva en una tarea activa, guiada y visual, facilitando la toma de decisiones colaborativa y la comparación de proyectos de forma transparente y por trabajo, incluyendo la gestión colaborativa de los detalles de cada trabajo. -->
+    <!-- Visualization & Content Choices: 
+        - Criterios del Informe -> Goal: Organizar y Evaluar -> Presentation: Secciones de texto con sliders interactivos -> Interaction: El usuario mueve el slider para asignar una puntuación a cada criterio. -> Justification: Los sliders son más intuitivos y atractivos que los campos de texto para puntuar, permitiendo un ajuste rápido. -> Library/Method: HTML/Tailwind/JS.
+        - Puntuaciones Individuales -> Goal: Comparar y Analizar -> Presentation: Gráfico de radar -> Interaction: El gráfico se actualiza dinámicamente al mover cualquier slider. -> Justification: Un gráfico de radar es la mejor visualización para comparar múltiples variables (los 5 criterios) en una sola figura, mostrando el "perfil" de un proyecto de forma clara e instantánea. -> Library/Method: Chart.js (Canvas).
+        - Puntuación Total Individual -> Goal: Informar -> Presentation: Bloque de texto con el resultado numérico total. -> Interaction: El valor se recalcula y actualiza en tiempo real. -> Justification: Proporciona una métrica sumaria y directa del rendimiento general del proyecto individual. -> Library/Method: HTML/JS.
+        - Puntuaciones Agregadas (Globales) -> Goal: Comparar y Sintetizar -> Presentation: Gráfico de barras (horizontal) -> Interaction: El gráfico se actualiza en tiempo real con las votaciones de todos los profesores para el trabajo seleccionado. -> Justification: Un gráfico de barras es excelente para comparar las medias de cada criterio entre sí, ofreciendo una visión clara de los puntos fuertes y débiles generales de los proyectos según el consenso. -> Library/Method: Chart.js (Canvas).
+        - Puntuación Media Global -> Goal: Informar -> Presentation: Bloque de texto con el resultado numérico promedio. -> Interaction: El valor se recalcula y actualiza en tiempo real. -> Justification: Proporciona una métrica sumaria y directa del rendimiento general consolidado. -> Library/Method: HTML/JS.
+        - Detalles del Trabajo (Nombre, Idea, Marca) -> Goal: Informar y Organizar -> Presentation: Campos de texto editables y un botón de guardar. -> Interaction: Los usuarios pueden editar y guardar la información, que se actualiza globalmente. -> Justification: Permite una gestión colaborativa y centralizada de la información de cada trabajo. -> Library/Method: HTML/Tailwind/JS con Firestore. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f7f4;
+            color: #3d3d3d;
+        }
+        .slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #2c5282;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: background-color 0.2s ease-in-out;
+        }
+        input[type='range']::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #2c5282;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        input[type='range']::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #2c5282;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            height: auto;
+            min-height: 300px;
+            margin: auto;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                min-height: 400px;
+            }
+        }
+        .bar-chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 700px;
+            height: auto;
+            min-height: 350px;
+            margin: auto;
+        }
+        @media (min-width: 768px) {
+            .bar-chart-container {
+                min-height: 450px;
+            }
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-7xl">
+        <header class="text-center mb-10">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800">Herramienta de Evaluación de Proyectos</h1>
+            <p class="text-lg text-gray-600 mt-2">Festival Agripina - Categoría Estudiantes</p>
+            <p id="userIdDisplay" class="text-sm text-gray-500 mt-2">Cargando ID de usuario...</p>
+        </header>
+
+        <div class="bg-white/60 backdrop-blur-sm p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200/50 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Seleccionar y Editar Trabajo</h2>
+            <div class="flex flex-col sm:flex-row items-center gap-4 mb-4">
+                <label for="workSelector" class="text-lg font-semibold text-gray-700">Trabajo:</label>
+                <select id="workSelector" class="flex-grow px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    <!-- Options will be populated by JS -->
+                </select>
+            </div>
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label for="workCustomNameInput" class="block text-sm font-medium text-gray-700 mb-1">Nombre del Trabajo:</label>
+                    <input type="text" id="workCustomNameInput" placeholder="Ej: Proyecto Final Publicidad" class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                    <label for="ideaNameInput" class="block text-sm font-medium text-gray-700 mb-1">Nombre de la Idea:</label>
+                    <input type="text" id="ideaNameInput" placeholder="Ej: Campaña 'EcoFuturo'" class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                    <label for="brandNameInput" class="block text-sm font-medium text-gray-700 mb-1">Marca:</label>
+                    <input type="text" id="brandNameInput" placeholder="Ej: GreenTech Solutions" class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+            </div>
+            <button id="saveWorkDetailsBtn" class="w-full px-6 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors shadow-md">
+                Guardar Detalles del Trabajo
+            </button>
+            <p id="workDetailsStatus" class="mt-4 text-center text-sm text-gray-600"></p>
+        </div>
+
+        <nav class="flex justify-center space-x-4 mb-10">
+            <button id="showEvaluation" class="px-6 py-3 rounded-xl bg-blue-700 text-white font-semibold hover:bg-blue-800 transition-colors shadow-md">
+                Mi Votación
+            </button>
+            <button id="showGlobalResults" class="px-6 py-3 rounded-xl bg-gray-200 text-gray-700 font-semibold hover:bg-gray-300 transition-colors shadow-md">
+                Resultados Globales
+            </button>
+        </nav>
+
+        <main>
+            <div id="evaluationPanel" class="bg-white/60 backdrop-blur-sm p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200/50 mb-12">
+                <h2 class="text-2xl font-bold text-gray-800 mb-2">Bienvenido, profesorado</h2>
+                <p class="text-gray-700 leading-relaxed">
+                    Esta herramienta interactiva está diseñada para facilitar la evaluación de las piezas de los estudiantes según los criterios oficiales del Festival Agripina. Utilice los controles deslizantes para puntuar cada categoría. El gráfico y el resumen se actualizarán en tiempo real para proporcionar una visión clara y comparable de cada proyecto, ayudando a tomar una decisión informada para la selección final.
+                </p>
+            </div>
+
+            <div id="evaluationContent" class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+                <div id="evaluation-criteria" class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200/50">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-6">Panel de Evaluación</h3>
+                    <!-- Criteria will be rendered here by JS -->
+                    <button id="saveVoteBtn" class="mt-8 w-full px-6 py-3 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-colors shadow-md">
+                        Guardar Votación
+                    </button>
+                    <p id="saveStatus" class="mt-4 text-center text-sm text-gray-600"></p>
+                </div>
+
+                <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200/50 flex flex-col justify-center items-center">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-4 text-center">Perfil Visual de Mi Votación</h3>
+                    <div class="chart-container">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                    <div class="mt-6 text-center bg-blue-50 p-6 rounded-xl w-full">
+                        <h4 class="text-lg font-semibold text-gray-700">Mi Puntuación Total</h4>
+                        <p id="totalScore" class="text-5xl font-bold text-blue-800 mt-2">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="globalResultsContent" class="hidden mt-12 bg-white p-6 sm:p-8 rounded-2xl shadow-lg border border-gray-200/50">
+                <h3 class="text-2xl font-bold text-gray-800 mb-6 text-center">Resultados Globales de Votaciones</h3>
+                <p class="text-gray-700 leading-relaxed mb-8 text-center">
+                    Aquí puedes ver el promedio de las puntuaciones de todos los profesores para el trabajo seleccionado. Este gráfico se actualiza en tiempo real a medida que se registran nuevas votaciones.
+                </p>
+                <div class="bar-chart-container">
+                    <canvas id="barChart"></canvas>
+                </div>
+                <div class="mt-6 text-center bg-purple-50 p-6 rounded-xl w-full">
+                    <h4 class="text-lg font-semibold text-gray-700">Puntuación Media Global</h4>
+                    <p id="globalAverageScore" class="text-5xl font-bold text-purple-800 mt-2">0.0</p>
+                    <p class="text-gray-600 mt-2">Basado en <span id="numVotes">0</span> votaciones</p>
+                </div>
+            </div>
+        </main>
+         <footer class="text-center py-10 mt-8">
+            <p class="text-gray-500">Diseñado como herramienta de apoyo para la selección de piezas del Festival Agripina.</p>
+            <div class="mt-4 text-gray-600 space-y-2">
+                <p>Ejemplos de ganadores y piezas inscritas:</p>
+                <ul class="list-none p-0 space-y-1">
+                    <li>
+                        <a href="https://premiosagripina.es/coca-cola-disfruta-de-lo-autentico/" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:text-blue-900 font-semibold underline">
+                            Coca-Cola: Disfruta de lo auténtico
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://premiosagripina.es/category/categorias-profesionales/estudiante/" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:text-blue-900 font-semibold underline">
+                            Categoría Estudiante - Ejemplos Adicionales
+                        </a>
+                    </li>
+                     <li>
+                        <a href="https://premiosagripina.es/festival-agripina-premios-2023/" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:text-blue-900 font-semibold underline">
+                            Festival Agripina Premios 2023
+                        </a>
+                    </li>
+                     <li>
+                        <a href="https://premiosagripina.es/ganadores-2022/" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:text-blue-900 font-semibold underline">
+                            Ganadores 2022
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://elenacasasespejo.com/toysagainstanxiety/" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:text-blue-900 font-semibold underline">
+                            Toys Against Anxiety
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </footer>
+    </div>
+
+    <script type="module">
+        const criteriaData = [
+            {
+                id: 'creatividad',
+                title: '1. Potencial Creativo y Originalidad',
+                score: 5,
+                questions: [
+                    '¿La idea es fresca, innovadora y se diferencia de lo convencional?',
+                    '¿Aporta una perspectiva novedosa al ámbito de la comunicación, el marketing, la publicidad o el diseño?'
+                ]
+            },
+            {
+                id: 'conocimiento',
+                title: '2. Aplicación de Conocimientos y Coherencia Académica',
+                score: 5,
+                questions: [
+                    '¿Cómo se aplican los conocimientos teóricos y prácticos adquiridos durante la formación académica?',
+                    '¿Existe una coherencia entre la estrategia planteada (si aplica) y la ejecución creativa?'
+                ]
+            },
+            {
+                id: 'ejecucion',
+                title: '3. Calidad Estética y Ejecución',
+                score: 5,
+                questions: [
+                    '¿La pieza demuestra un alto nivel de cuidado en su producción y presentación?',
+                    '¿La ejecución es impecable y profesional, acorde con los estándares de la industria?'
+                ]
+            },
+            {
+                id: 'conexion',
+                title: '4. Conexión con el Público y Claridad de Objetivos',
+                score: 5,
+                questions: [
+                    '¿El mensaje es claro, relevante y logra conectar de manera efectiva con el público objetivo al que se dirige?',
+                    '¿Se perciben claramente los objetivos de comunicación, marketing o diseño que la pieza busca alcanzar?'
+                ]
+            },
+            {
+                id: 'impacto',
+                title: '5. Potencial de Impacto y Relevancia',
+                score: 5,
+                questions: [
+                    '¿La pieza tiene la capacidad de generar un impacto significativo o de ser memorable para el jurado y el público general?',
+                    '¿Es un proyecto pertinente y relevante dentro del contexto actual de la comunicación y el diseño?'
+                ]
+            }
+        ];
+
+        const worksData = [];
+        for (let i = 1; i <= 16; i++) {
+            worksData.push({ id: `work-${i}`, name: `Trabajo del Estudiante ${i}`, customName: '', ideaName: '', brandName: '' });
+        }
+
+        let currentWorkId = worksData[0].id; // Default to the first work
+        let globalResultsUnsubscribe = null; // To manage Firestore listener for global votes
+        let workDetailsUnsubscribe = null; // To manage Firestore listener for work details
+
+        const evaluationContainer = document.getElementById('evaluation-criteria');
+        const totalScoreEl = document.getElementById('totalScore');
+        const saveVoteBtn = document.getElementById('saveVoteBtn');
+        const saveStatusEl = document.getElementById('saveStatus');
+        const showEvaluationBtn = document.getElementById('showEvaluation');
+        const showGlobalResultsBtn = document.getElementById('showGlobalResults');
+        const evaluationContent = document.getElementById('evaluationContent');
+        const globalResultsContent = document.getElementById('globalResultsContent');
+        const globalAverageScoreEl = document.getElementById('globalAverageScore');
+        const numVotesEl = document.getElementById('numVotes');
+        const workSelector = document.getElementById('workSelector');
+        const workCustomNameInput = document.getElementById('workCustomNameInput');
+        const ideaNameInput = document.getElementById('ideaNameInput');
+        const brandNameInput = document.getElementById('brandNameInput');
+        const saveWorkDetailsBtn = document.getElementById('saveWorkDetailsBtn');
+        const workDetailsStatusEl = document.getElementById('workDetailsStatus');
+
+        let radarChart;
+        let barChart;
+
+        // --- Core Functions (Moved to top for proper hoisting/definition) ---
+        async function loadUserVote() {
+            if (!window.isAuthReady || window.userId === null) {
+                return;
+            }
+            try {
+                const docRef = window.doc(window.db, `artifacts/${window.appId}/public/data/agripina_votes_by_work/${currentWorkId}/votes`, window.userId);
+                const docSnap = await window.getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const savedData = docSnap.data();
+                    criteriaData.forEach(c => {
+                        if (savedData[c.id] !== undefined) {
+                            c.score = savedData[c.id];
+                            const slider = document.getElementById(`slider-${c.id}`);
+                            const scoreDisplay = document.getElementById(`score-${c.id}`);
+                            if (slider && scoreDisplay) {
+                                slider.value = c.score;
+                                scoreDisplay.textContent = c.score;
+                            }
+                        }
+                    });
+                    updateRadarChartAndScore();
+                } else {
+                    criteriaData.forEach(c => {
+                        c.score = 5; // Default score
+                        const slider = document.getElementById(`slider-${c.id}`);
+                        const scoreDisplay = document.getElementById(`score-${c.id}`);
+                        if (slider && scoreDisplay) {
+                            slider.value = c.score;
+                            scoreDisplay.textContent = c.score;
+                        }
+                    });
+                    updateRadarChartAndScore();
+                }
+            } catch (e) {
+                console.error("Error al cargar la votación del usuario: ", e);
+            }
+        }
+
+        async function loadWorkDetails() {
+            if (!window.isAuthReady) {
+                return;
+            }
+            try {
+                const docRef = window.doc(window.db, `artifacts/${window.appId}/public/data/agripina_work_details`, currentWorkId);
+                const docSnap = await window.getDoc(docRef);
+
+                const currentWork = worksData.find(w => w.id === currentWorkId);
+
+                if (docSnap.exists()) {
+                    const details = docSnap.data();
+                    currentWork.customName = details.customName || '';
+                    currentWork.ideaName = details.ideaName || '';
+                    currentWork.brandName = details.brandName || '';
+                } else {
+                    currentWork.customName = '';
+                    currentWork.ideaName = '';
+                    currentWork.brandName = '';
+                }
+                
+                workCustomNameInput.value = currentWork.customName;
+                ideaNameInput.value = currentWork.ideaName;
+                brandNameInput.value = currentWork.brandName;
+
+                // Update work selector option text
+                const selectedOption = workSelector.querySelector(`option[value="${currentWorkId}"]`);
+                if (selectedOption) {
+                    selectedOption.textContent = currentWork.customName || currentWork.name;
+                }
+
+            } catch (e) {
+                console.error("Error al cargar los detalles del trabajo: ", e);
+            }
+        }
+
+        async function saveWorkDetails() {
+            if (!window.isAuthReady || window.userId === null) {
+                workDetailsStatusEl.textContent = 'Autenticando usuario, por favor espera...';
+                return;
+            }
+
+            workDetailsStatusEl.textContent = 'Guardando detalles del trabajo...';
+            try {
+                const details = {
+                    customName: workCustomNameInput.value,
+                    ideaName: ideaNameInput.value,
+                    brandName: brandNameInput.value
+                };
+
+                const docRef = window.doc(window.db, `artifacts/${window.appId}/public/data/agripina_work_details`, currentWorkId);
+                await window.setDoc(docRef, details, { merge: true }); // Use merge to only update specified fields
+                workDetailsStatusEl.textContent = 'Detalles guardados con éxito!';
+                setTimeout(() => workDetailsStatusEl.textContent = '', 3000);
+            } catch (e) {
+                console.error("Error al guardar los detalles del trabajo: ", e);
+                workDetailsStatusEl.textContent = 'Error al guardar los detalles del trabajo.';
+            }
+        }
+
+        async function saveVote() {
+            if (!window.isAuthReady || window.userId === null) {
+                saveStatusEl.textContent = 'Autenticando usuario, por favor espera...';
+                console.log("Save vote failed: Auth not ready or userId is null.");
+                return;
+            }
+
+            saveStatusEl.textContent = 'Guardando votación...';
+            try {
+                const voteData = {};
+                criteriaData.forEach(c => {
+                    voteData[c.id] = c.score;
+                });
+
+                const docRef = window.doc(window.db, `artifacts/${window.appId}/public/data/agripina_votes_by_work/${currentWorkId}/votes`, window.userId);
+                await window.setDoc(docRef, voteData);
+                saveStatusEl.textContent = 'Votación guardada con éxito!';
+                setTimeout(() => saveStatusEl.textContent = '', 3000);
+            } catch (e) {
+                console.error("Error al guardar la votación: ", e);
+                saveStatusEl.textContent = 'Error al guardar la votación.';
+            }
+        }
+        
+        // --- Listeners and UI Updates ---
+        async function fetchAndPopulateAllWorkDetails() {
+            if (!window.isAuthReady) {
+                return;
+            }
+            try {
+                const q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/agripina_work_details`));
+                const querySnapshot = await window.getDocs(q);
+
+                querySnapshot.forEach((doc) => {
+                    const workId = doc.id;
+                    const details = doc.data();
+                    const workIndex = worksData.findIndex(w => w.id === workId);
+                    if (workIndex > -1) {
+                        worksData[workIndex].customName = details.customName || '';
+                        worksData[workIndex].ideaName = details.ideaName || '';
+                        worksData[workIndex].brandName = details.brandName || '';
+                    }
+                });
+                populateWorkSelector(); // Populate selector with potentially updated names
+                loadUserVote(); // Load user's vote for the initially selected work
+                loadWorkDetails(); // Load details for the initially selected work's inputs
+            } catch (e) {
+                console.error("Error al cargar todos los detalles de los trabajos: ", e);
+            }
+        }
+
+        function setupGlobalResultsListener() {
+            if (globalResultsUnsubscribe) {
+                globalResultsUnsubscribe(); // Unsubscribe from previous listener
+            }
+            if (!window.isAuthReady) {
+                return;
+            }
+            const q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/agripina_votes_by_work/${currentWorkId}/votes`));
+            
+            globalResultsUnsubscribe = window.onSnapshot(q, (snapshot) => {
+                let totalScores = {};
+                let voteCount = 0;
+
+                criteriaData.forEach(c => totalScores[c.id] = 0);
+
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    voteCount++;
+                    criteriaData.forEach(c => {
+                        if (data[c.id] !== undefined) {
+                            totalScores[c.id] += data[c.id];
+                        }
+                    });
+                });
+
+                const averageScores = criteriaData.map(c => 
+                    voteCount > 0 ? (totalScores[c.id] / voteCount) : 0
+                );
+                const overallAverage = averageScores.reduce((sum, avg) => sum + avg, 0) / criteriaData.length;
+
+                if (barChart) {
+                    barChart.data.datasets[0].data = averageScores;
+                    barChart.update();
+                }
+                globalAverageScoreEl.textContent = overallAverage.toFixed(2);
+                numVotesEl.textContent = voteCount;
+            }, (error) => {
+                console.error("Error al escuchar resultados globales:", error);
+            });
+        }
+
+        function setupWorkDetailsListener() {
+            if (workDetailsUnsubscribe) {
+                workDetailsUnsubscribe(); // Unsubscribe from previous listener
+            }
+            if (!window.isAuthReady) {
+                return;
+            }
+            const q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/agripina_work_details`));
+            
+            workDetailsUnsubscribe = window.onSnapshot(q, (snapshot) => {
+                snapshot.docChanges().forEach(change => {
+                    const workId = change.doc.id;
+                    const details = change.doc.data();
+                    const workIndex = worksData.findIndex(w => w.id === workId);
+
+                    if (workIndex > -1) {
+                        worksData[workIndex].customName = details.customName || '';
+                        worksData[workIndex].ideaName = details.ideaName || '';
+                        worksData[workIndex].brandName = details.brandName || '';
+
+                        const option = workSelector.querySelector(`option[value="${workId}"]`);
+                        if (option) {
+                            option.textContent = worksData[workIndex].customName || worksData[workIndex].name;
+                        }
+
+                        // If the currently selected work's details changed, update the inputs
+                        if (workId === currentWorkId) {
+                            workCustomNameInput.value = worksData[workIndex].customName;
+                            ideaNameInput.value = worksData[workIndex].ideaName;
+                            brandNameInput.value = worksData[workIndex].brandName;
+                        }
+                    }
+                });
+            }, (error) => {
+                console.error("Error al escuchar detalles de trabajos:", error);
+            });
+        }
+
+        function renderCriteria() {
+            evaluationContainer.innerHTML = `
+                <h3 class="text-2xl font-bold text-gray-800 mb-6">Panel de Evaluación</h3>
+            `;
+            criteriaData.forEach((criterion, index) => {
+                const section = document.createElement('div');
+                section.className = 'mb-8';
+
+                const title = document.createElement('h4');
+                title.className = 'text-lg font-bold text-gray-800 mb-3';
+                title.textContent = criterion.title;
+                section.appendChild(title);
+
+                const questionsList = document.createElement('ul');
+                questionsList.className = 'list-disc list-inside text-gray-600 mb-4 space-y-1';
+                criterion.questions.forEach(q => {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = q;
+                    questionsList.appendChild(listItem);
+                });
+                section.appendChild(questionsList);
+
+                const sliderContainer = document.createElement('div');
+                sliderContainer.className = 'flex items-center gap-4';
+
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                slider.min = '0';
+                slider.max = '10';
+                slider.value = criterion.score;
+                slider.id = `slider-${criterion.id}`;
+                slider.className = 'w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer';
+                
+                const scoreDisplay = document.createElement('span');
+                scoreDisplay.id = `score-${criterion.id}`;
+                scoreDisplay.className = 'text-xl font-bold text-blue-800 w-12 text-center';
+                scoreDisplay.textContent = criterion.score;
+
+                slider.addEventListener('input', (e) => {
+                    const newScore = parseInt(e.target.value);
+                    criteriaData[index].score = newScore;
+                    scoreDisplay.textContent = newScore;
+                    updateRadarChartAndScore();
+                });
+
+                sliderContainer.appendChild(slider);
+                sliderContainer.appendChild(scoreDisplay);
+                section.appendChild(sliderContainer);
+
+                evaluationContainer.appendChild(section);
+            });
+             evaluationContainer.appendChild(saveVoteBtn);
+             evaluationContainer.appendChild(saveStatusEl);
+        }
+        
+        function updateRadarChartAndScore() {
+            const scores = criteriaData.map(c => c.score);
+            const totalScore = scores.reduce((acc, score) => acc + score, 0);
+
+            if (radarChart) {
+                radarChart.data.datasets[0].data = scores;
+                radarChart.update();
+            }
+            totalScoreEl.textContent = totalScore;
+        }
+
+        function createRadarChart() {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            const labels = criteriaData.map(c => c.title.split('. ')[1].split(' y ')[0]);
+            
+            Chart.defaults.font.family = "'Inter', sans-serif";
+
+            radarChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: labels.map(label => label.length > 16 ? label.match(/.{1,16}/g) : label),
+                    datasets: [{
+                        label: 'Puntuación del Proyecto',
+                        data: criteriaData.map(c => c.score),
+                        backgroundColor: 'rgba(44, 82, 130, 0.2)',
+                        borderColor: 'rgb(44, 82, 130)',
+                        pointBackgroundColor: 'rgb(44, 82, 130)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgb(44, 82, 130)',
+                        borderWidth: 2,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            angleLines: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            pointLabels: {
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                },
+                                color: '#3d3d3d'
+                            },
+                            suggestedMin: 0,
+                            suggestedMax: 10,
+                            ticks: {
+                                stepSize: 2,
+                                backdropColor: 'rgba(248, 247, 244, 0.6)',
+                                color: '#555'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: { // <-- 'callbacks:' YA ESTÁ AQUÍ
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.r !== null) {
+                                        label += context.parsed.r;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createBarChart() {
+            const ctx = document.getElementById('barChart').getContext('2d');
+            const labels = criteriaData.map(c => c.title.split('. ')[1].split(' y ')[0]);
+
+            barChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels.map(label => label.length > 16 ? label.match(/.{1,16}/g) : label),
+                    datasets: [{
+                        label: 'Puntuación Media',
+                        data: [],
+                        backgroundColor: 'rgba(139, 92, 246, 0.6)',
+                        borderColor: 'rgb(139, 92, 246)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            max: 10,
+                            ticks: {
+                                stepSize: 1,
+                                color: '#555'
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                color: '#3d3d3d',
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: { // <-- ¡AÑADIDO AQUÍ!
                                 label: function(context) {
                                     let label = context.dataset.label || '';
                                     if (label) {
