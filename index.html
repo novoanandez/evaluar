@@ -9,115 +9,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
-    <!-- Firebase SDK -->
-    <script type="module">
-        console.log("SCRIPT MODULE STARTING..."); // NEW: First line in the module script
-
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, query, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        console.log("Firebase modules imported successfully."); // NEW: After imports
-
-        const firebaseConfig = {
-          apiKey: "AIzaSyA0hy5PZwHw9hdkVnPqLNkztGeghk-j1s4", 
-          authDomain: "agripina-evaluador.firebaseapp.com",
-          projectId: "agripina-evaluador",
-          storageBucket: "agripina-evaluador.firebasestorage.app",
-          messagingSenderId: "651959986582",
-          appId: "1:651959986582:web:beab2a64a4553b9c31d5b7"
-        };
-        const appId = firebaseConfig.projectId; // Usamos el projectId como appId para la ruta de Firestore
-
-        let app, db, auth; // Declare these variables here
-
-        try {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            console.log("Firebase app and services initialized.");
-        } catch (e) {
-            console.error("Error initializing Firebase app or services:", e);
-            document.getElementById('userIdDisplay').textContent = `Error de inicialización de Firebase: ${e.message}. Verifica tu configuración.`;
-        }
-
-        window.db = db; // Assign to window object
-        window.auth = auth; // Assign to window object
-        window.userId = null;
-        window.isAuthReady = false;
-        window.appId = appId; // Make appId globally accessible
-
-        console.log("Firebase services assigned to window object.");
-
-        // Listener para el estado de autenticación de Firebase
-        if (window.auth) { // Only attach listener if auth was successfully initialized
-            onAuthStateChanged(window.auth, async (user) => {
-                if (user) {
-                    window.userId = user.uid;
-                    console.log("Firebase Auth: Usuario autenticado. ID:", window.userId);
-                } else {
-                    console.log("Firebase Auth: No hay usuario autenticado. Intentando inicio de sesión anónimo...");
-                    try {
-                        await signInAnonymously(window.auth);
-                        window.userId = window.auth.currentUser.uid;
-                        console.log("Firebase Auth: Inicio de sesión anónimo exitoso. ID:", window.userId);
-                    } catch (error) {
-                        console.error("Firebase Auth: Error al iniciar sesión anónimamente:", error);
-                        document.getElementById('userIdDisplay').textContent = `Error de autenticación: ${error.message}. Verifica tu configuración de Firebase y las reglas de seguridad.`;
-                    }
-                }
-                window.isAuthReady = true;
-                document.getElementById('userIdDisplay').textContent = `Tu ID: ${window.userId}`;
-                document.dispatchEvent(new CustomEvent('firebaseAuthReady'));
-                console.log("Firebase Auth: Evento 'firebaseAuthReady' despachado.");
-            });
-        } else {
-            console.error("Firebase Auth no se inicializó correctamente, no se pudo adjuntar onAuthStateChanged.");
-            document.getElementById('userIdDisplay').textContent = `Error crítico: Firebase Auth no disponible.`;
-        }
-
-        // Exportar funciones de Firebase para que sean accesibles globalmente
-        window.getFirestore = getFirestore;
-        window.doc = doc;
-        window.setDoc = setDoc;
-        window.onSnapshot = onSnapshot;
-        window.collection = collection;
-        window.query = query;
-        window.getDocs = getDocs;
-        window.getDoc = getDoc;
-
-        // Moved DOMContentLoaded listener to be the first thing after global assignments
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log("DOMContentLoaded: DOM completamente cargado."); // This should now appear if the script runs at all
-            renderCriteria();
-            createRadarChart();
-            createBarChart();
-            
-            // Poblar el selector de trabajos inmediatamente con los datos iniciales
-            populateWorkSelector(); 
-
-            workSelector.addEventListener('change', onWorkSelectorChange);
-            saveVoteBtn.addEventListener('click', saveVote);
-            saveWorkDetailsBtn.addEventListener('click', saveWorkDetails);
-            showEvaluationBtn.addEventListener('click', () => showPanel('evaluation'));
-            showGlobalResultsBtn.addEventListener('click', () => showPanel('globalResults'));
-
-            document.addEventListener('firebaseAuthReady', () => {
-                console.log("firebaseAuthReady: Evento recibido. Iniciando carga de datos de Firebase.");
-                fetchAndPopulateAllWorkDetails();
-                setupGlobalResultsListener();
-                setupWorkDetailsListener();
-            });
-
-            showPanel('evaluation');
-        });
-    </script>
 </head>
 <body class="antialiased">
-    <!-- NUEVO SCRIPT DE PRUEBA: ESTO DEBERÍA APARECER SIEMPRE EN LA CONSOLA -->
-    <script>
-        console.log("¡SCRIPT BÁSICO EN BODY FUNCIONANDO!");
-    </script>
     <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-7xl">
         <header class="text-center mb-10">
             <h1 class="text-3xl md:text-4xl font-bold text-gray-800">Herramienta de Evaluación de Proyectos</h1>
@@ -241,5 +134,755 @@
             </div>
         </footer>
     </div>
+
+    <!-- SCRIPT BÁSICO PARA LA LÓGICA DE LA INTERFAZ DE USUARIO Y DATOS INICIALES -->
+    <script>
+        console.log("¡SCRIPT BÁSICO DE UI INICIANDO!");
+
+        // Definición de los criterios de evaluación
+        const criteriaData = [
+            {
+                id: 'creatividad',
+                title: '1. Potencial Creativo y Originalidad',
+                score: 5,
+                questions: [
+                    '¿La idea es fresca, innovadora y se diferencia de lo convencional?',
+                    '¿Aporta una perspectiva novedosa al ámbito de la comunicación, el marketing, la publicidad o el diseño?'
+                ]
+            },
+            {
+                id: 'conocimiento',
+                title: '2. Aplicación de Conocimientos y Coherencia Académica',
+                score: 5,
+                questions: [
+                    '¿Cómo se aplican los conocimientos teóricos y prácticos adquiridos durante la formación académica?',
+                    '¿Existe una coherencia entre la estrategia planteada (si aplica) y la ejecución creativa?'
+                ]
+            },
+            {
+                id: 'ejecucion',
+                title: '3. Calidad Estética y Ejecución',
+                score: 5,
+                questions: [
+                    '¿La pieza demuestra un alto nivel de cuidado en su producción y presentación?',
+                    '¿La ejecución es impecable y profesional, acorde con los estándares de la industria?'
+                ]
+            },
+            {
+                id: 'conexion',
+                title: '4. Conexión con el Público y Claridad de Objetivos',
+                score: 5,
+                questions: [
+                    '¿El mensaje es claro, relevante y logra conectar de manera efectiva con el público objetivo al que se dirige?',
+                    '¿Se perciben claramente los objetivos de comunicación, marketing o diseño que la pieza busca alcanzar?'
+                ]
+            },
+            {
+                id: 'impacto',
+                title: '5. Potencial de Impacto y Relevancia',
+                score: 5,
+                questions: [
+                    '¿La pieza tiene la capacidad de generar un impacto significativo o de ser memorable para el jurado y el público general?',
+                    '¿Es un proyecto pertinente y relevante dentro del contexto actual de la comunicación y el diseño?'
+                ]
+            }
+        ];
+
+        // Definición de los trabajos/participantes
+        const worksData = [];
+        for (let i = 1; i <= 16; i++) {
+            worksData.push({ id: `work-${i}`, name: `Trabajo del Estudiante ${i}`, customName: '', ideaName: '', brandName: '' });
+        }
+        console.log("worksData inicializada en script básico:", worksData.length, "elementos.");
+
+        // Variables globales de la UI
+        const evaluationContainer = document.getElementById('evaluation-criteria');
+        const totalScoreEl = document.getElementById('totalScore');
+        const saveVoteBtn = document.getElementById('saveVoteBtn');
+        const saveStatusEl = document.getElementById('saveStatus');
+        const showEvaluationBtn = document.getElementById('showEvaluation');
+        const showGlobalResultsBtn = document.getElementById('showGlobalResults');
+        const evaluationContent = document.getElementById('evaluationContent');
+        const globalResultsContent = document.getElementById('globalResultsContent');
+        const globalAverageScoreEl = document.getElementById('globalAverageScore');
+        const numVotesEl = document.getElementById('numVotes');
+        const workSelector = document.getElementById('workSelector');
+        const workCustomNameInput = document.getElementById('workCustomNameInput');
+        const ideaNameInput = document.getElementById('ideaNameInput');
+        const brandNameInput = document.getElementById('brandNameInput');
+        const saveWorkDetailsBtn = document.getElementById('saveWorkDetailsBtn');
+        const workDetailsStatusEl = document.getElementById('workDetailsStatus');
+
+        let radarChart;
+        let barChart;
+
+        // Funciones de renderizado y actualización de la UI
+        function renderCriteria() {
+            evaluationContainer.innerHTML = `
+                <h3 class="text-2xl font-bold text-gray-800 mb-6">Panel de Evaluación</h3>
+            `;
+            criteriaData.forEach((criterion, index) => {
+                const section = document.createElement('div');
+                section.className = 'mb-8';
+
+                const title = document.createElement('h4');
+                title.className = 'text-lg font-bold text-gray-800 mb-3';
+                title.textContent = criterion.title;
+                section.appendChild(title);
+
+                const questionsList = document.createElement('ul');
+                questionsList.className = 'list-disc list-inside text-gray-600 mb-4 space-y-1';
+                criterion.questions.forEach(q => {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = q;
+                    questionsList.appendChild(listItem);
+                });
+                section.appendChild(questionsList);
+
+                const sliderContainer = document.createElement('div');
+                sliderContainer.className = 'flex items-center gap-4';
+
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                slider.min = '0';
+                slider.max = '10';
+                slider.value = criterion.score;
+                slider.id = `slider-${criterion.id}`;
+                slider.className = 'w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer';
+                
+                const scoreDisplay = document.createElement('span');
+                scoreDisplay.id = `score-${criterion.id}`;
+                scoreDisplay.className = 'text-xl font-bold text-blue-800 w-12 text-center';
+                scoreDisplay.textContent = criterion.score;
+
+                slider.addEventListener('input', (e) => {
+                    const newScore = parseInt(e.target.value);
+                    criteriaData[index].score = newScore;
+                    scoreDisplay.textContent = newScore;
+                    updateRadarChartAndScore();
+                });
+
+                sliderContainer.appendChild(slider);
+                sliderContainer.appendChild(scoreDisplay);
+                section.appendChild(sliderContainer);
+
+                evaluationContainer.appendChild(section);
+            });
+             evaluationContainer.appendChild(saveVoteBtn);
+             evaluationContainer.appendChild(saveStatusEl);
+             console.log("renderCriteria: Criterios renderizados.");
+        }
+        
+        function updateRadarChartAndScore() {
+            const scores = criteriaData.map(c => c.score);
+            const totalScore = scores.reduce((acc, score) => acc + score, 0);
+
+            if (radarChart) {
+                radarChart.data.datasets[0].data = scores;
+                radarChart.update();
+            }
+            totalScoreEl.textContent = totalScore;
+            console.log("updateRadarChartAndScore: Gráfico de radar y puntuación total actualizados.");
+        }
+
+        function createRadarChart() {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            const labels = criteriaData.map(c => c.title.split('. ')[1].split(' y ')[0]);
+            
+            Chart.defaults.font.family = "'Inter', sans-serif";
+
+            radarChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: labels.map(label => label.length > 16 ? label.match(/.{1,16}/g) : label),
+                    datasets: [{
+                        label: 'Puntuación del Proyecto',
+                        data: criteriaData.map(c => c.score),
+                        backgroundColor: 'rgba(44, 82, 130, 0.2)',
+                        borderColor: 'rgb(44, 82, 130)',
+                        pointBackgroundColor: 'rgb(44, 82, 130)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgb(44, 82, 130)',
+                        borderWidth: 2,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            angleLines: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            pointLabels: {
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                },
+                                color: '#3d3d3d'
+                            },
+                            suggestedMin: 0,
+                            suggestedMax: 10,
+                            ticks: {
+                                stepSize: 2,
+                                backdropColor: 'rgba(248, 247, 244, 0.6)',
+                                color: '#555'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.r !== null) {
+                                        label += context.parsed.r;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            console.log("createRadarChart: Gráfico de radar creado.");
+        }
+
+        function createBarChart() {
+            const ctx = document.getElementById('barChart').getContext('2d');
+            const labels = criteriaData.map(c => c.title.split('. ')[1].split(' y ')[0]);
+
+            barChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels.map(label => label.length > 16 ? label.match(/.{1,16}/g) : label),
+                    datasets: [{
+                        label: 'Puntuación Media',
+                        data: [],
+                        backgroundColor: 'rgba(139, 92, 246, 0.6)',
+                        borderColor: 'rgb(139, 92, 246)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            max: 10,
+                            ticks: {
+                                stepSize: 1,
+                                color: '#555'
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                color: '#3d3d3d',
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    label += Math.round(context.parsed.x * 100) / 100;
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            console.log("createBarChart: Gráfico de barras creado.");
+        }
+
+        function showPanel(panelId) {
+            if (panelId === 'evaluation') {
+                evaluationContent.classList.remove('hidden');
+                globalResultsContent.classList.add('hidden');
+                showEvaluationBtn.classList.add('bg-blue-700', 'text-white');
+                showEvaluationBtn.classList.remove('bg-gray-200', 'text-gray-700');
+                showGlobalResultsBtn.classList.remove('bg-blue-700', 'text-white');
+                showGlobalResultsBtn.classList.add('bg-gray-200', 'text-gray-700');
+            } else {
+                evaluationContent.classList.add('hidden');
+                globalResultsContent.classList.remove('hidden');
+                showGlobalResultsBtn.classList.add('bg-blue-700', 'text-white');
+                showGlobalResultsBtn.classList.remove('bg-gray-200', 'text-gray-700');
+                showEvaluationBtn.classList.remove('bg-blue-700', 'text-white');
+                showEvaluationBtn.classList.add('bg-gray-200', 'text-gray-700');
+            }
+            console.log("showPanel: Mostrando panel:", panelId);
+        }
+
+        function populateWorkSelector() {
+            const workSelector = document.getElementById('workSelector');
+            if (workSelector) {
+                workSelector.innerHTML = ''; // Clear existing options
+                worksData.forEach(work => {
+                    const option = document.createElement('option');
+                    option.value = work.id;
+                    option.textContent = work.customName || work.name; // Use customName if available
+                    workSelector.appendChild(option);
+                });
+                workSelector.value = worksData[0].id; // Set initial selection to the first work
+                console.log("populateWorkSelector: Selector de trabajos poblado con", worksData.length, "elementos.");
+            } else {
+                console.error("populateWorkSelector: Elemento workSelector no encontrado.");
+            }
+        }
+
+        // Esta función se llamará desde el script module cuando Firebase esté listo
+        function onWorkSelectorChange() {
+            window.currentWorkId = workSelector.value; // Asegúrate de que currentWorkId sea global
+            console.log("onWorkSelectorChange: Trabajo seleccionado:", window.currentWorkId);
+            // Estas llamadas ahora son responsabilidad del script module, ya que interactúan con Firebase
+            if (window.isAuthReady) {
+                window.loadUserVote(); 
+                window.loadWorkDetails(); 
+                window.setupGlobalResultsListener(); 
+            } else {
+                console.log("onWorkSelectorChange: Firebase Auth no listo para cargar datos.");
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOMContentLoaded: DOM de script básico completamente cargado.");
+            renderCriteria();
+            createRadarChart();
+            createBarChart();
+            populateWorkSelector(); // Populate selector with initial names
+            
+            // Event Listeners para UI básica
+            workSelector.addEventListener('change', onWorkSelectorChange);
+            showEvaluationBtn.addEventListener('click', () => showPanel('evaluation'));
+            showGlobalResultsBtn.addEventListener('click', () => showPanel('globalResults'));
+            
+            showPanel('evaluation'); // Default to evaluation panel
+        });
+    </script>
+
+    <!-- SCRIPT PARA LA LÓGICA DE FIREBASE (REQUIERE type="module") -->
+    <script type="module">
+        console.log("SCRIPT MODULE FIREBASE INICIANDO...");
+
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, query, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        console.log("Firebase módulos importados exitosamente en script module.");
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyA0hy5PZwHw9hdkVnPqLNkztGeghk-j1s4", 
+          authDomain: "agripina-evaluador.firebaseapp.com",
+          projectId: "agripina-evaluador",
+          storageBucket: "agripina-evaluador.firebasestorage.app",
+          messagingSenderId: "651959986582",
+          appId: "1:651959986582:web:beab2a64a4553b9c31d5b7"
+        };
+        window.appId = firebaseConfig.projectId; // Asegúrate de que appId sea global
+
+        let app, db, auth; 
+
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            console.log("Firebase app y servicios inicializados.");
+        } catch (e) {
+            console.error("Error al inicializar Firebase app o servicios:", e);
+            document.getElementById('userIdDisplay').textContent = `Error de inicialización de Firebase: ${e.message}. Verifica tu configuración.`;
+        }
+
+        window.db = db; 
+        window.auth = auth; 
+        window.userId = null;
+        window.isAuthReady = false;
+        window.currentWorkId = window.worksData ? window.worksData[0].id : 'work-1'; // Usar worksData del script básico
+
+        console.log("Firebase servicios asignados a window object.");
+
+        // Listener para el estado de autenticación de Firebase
+        onAuthStateChanged(window.auth, async (user) => { 
+            if (user) {
+                window.userId = user.uid;
+                console.log("Firebase Auth: Usuario autenticado. ID:", window.userId);
+            } else {
+                console.log("Firebase Auth: No hay usuario autenticado. Intentando inicio de sesión anónimo...");
+                try {
+                    await signInAnonymously(window.auth);
+                    window.userId = window.auth.currentUser.uid;
+                    console.log("Firebase Auth: Inicio de sesión anónimo exitoso. ID:", window.userId);
+                } catch (error) {
+                    console.error("Firebase Auth: Error al iniciar sesión anónimamente:", error);
+                    document.getElementById('userIdDisplay').textContent = `Error de autenticación: ${error.message}. Verifica tu configuración de Firebase y las reglas de seguridad.`;
+                }
+            }
+            window.isAuthReady = true;
+            document.getElementById('userIdDisplay').textContent = `Tu ID: ${window.userId}`;
+            document.dispatchEvent(new CustomEvent('firebaseAuthReady'));
+            console.log("Firebase Auth: Evento 'firebaseAuthReady' despachado.");
+        });
+
+        // Funciones que interactúan con Firebase (ahora globales para ser llamadas desde otros scripts)
+        window.loadUserVote = async function() {
+            if (!window.isAuthReady || window.userId === null) {
+                console.log("loadUserVote: Autenticación no lista o userId es null. No se carga la votación.");
+                return;
+            }
+            console.log("loadUserVote: Intentando cargar votación para el usuario", window.userId, "y trabajo", window.currentWorkId);
+            try {
+                const docRef = doc(window.db, `artifacts/${window.appId}/public/data/agripina_votes_by_work/${window.currentWorkId}/votes`, window.userId);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const savedData = docSnap.data();
+                    console.log("loadUserVote: Datos de votación encontrados:", savedData);
+                    window.criteriaData.forEach(c => { // Acceder a criteriaData global
+                        if (savedData[c.id] !== undefined) {
+                            c.score = savedData[c.id];
+                            const slider = document.getElementById(`slider-${c.id}`);
+                            const scoreDisplay = document.getElementById(`score-${c.id}`);
+                            if (slider && scoreDisplay) {
+                                slider.value = c.score;
+                                scoreDisplay.textContent = c.score;
+                            }
+                        }
+                    });
+                    window.updateRadarChartAndScore(); // Llamar a función global
+                } else {
+                    console.log("loadUserVote: No se encontraron votaciones previas. Estableciendo puntuaciones por defecto.");
+                    window.criteriaData.forEach(c => { // Acceder a criteriaData global
+                        c.score = 5; // Default score
+                        const slider = document.getElementById(`slider-${c.id}`);
+                        const scoreDisplay = document.getElementById(`score-${c.id}`);
+                        if (slider && scoreDisplay) {
+                            slider.value = c.score;
+                            scoreDisplay.textContent = c.score;
+                        }
+                    });
+                    window.updateRadarChartAndScore(); // Llamar a función global
+                }
+            } catch (e) {
+                console.error("loadUserVote: Error al cargar la votación del usuario: ", e);
+            }
+        };
+
+        window.loadWorkDetails = async function() {
+            if (!window.isAuthReady) {
+                console.log("loadWorkDetails: Autenticación no lista. No se cargan los detalles del trabajo.");
+                return;
+            }
+            console.log("loadWorkDetails: Intentando cargar detalles para el trabajo", window.currentWorkId);
+            try {
+                const docRef = doc(window.db, `artifacts/${window.appId}/public/data/agripina_work_details`, window.currentWorkId);
+                const docSnap = await getDoc(docRef);
+
+                const currentWork = window.worksData.find(w => w.id === window.currentWorkId); // Acceder a worksData global
+
+                if (docSnap.exists()) {
+                    const details = docSnap.data();
+                    console.log("loadWorkDetails: Detalles del trabajo encontrados:", details);
+                    currentWork.customName = details.customName || '';
+                    currentWork.ideaName = details.ideaName || '';
+                    currentWork.brandName = details.brandName || '';
+                } else {
+                    console.log("loadWorkDetails: No se encontraron detalles para este trabajo. Usando valores por defecto.");
+                    currentWork.customName = '';
+                    currentWork.ideaName = '';
+                    currentWork.brandName = '';
+                }
+                
+                document.getElementById('workCustomNameInput').value = currentWork.customName;
+                document.getElementById('ideaNameInput').value = currentWork.ideaName;
+                document.getElementById('brandNameInput').value = currentWork.brandName;
+
+                // Update work selector option text
+                const workSelector = document.getElementById('workSelector');
+                const selectedOption = workSelector.querySelector(`option[value="${window.currentWorkId}"]`);
+                if (selectedOption) {
+                    selectedOption.textContent = currentWork.customName || currentWork.name;
+                }
+
+            } catch (e) {
+                console.error("loadWorkDetails: Error al cargar los detalles del trabajo: ", e);
+            }
+        };
+
+        window.saveWorkDetails = async function() {
+            if (!window.isAuthReady || window.userId === null) {
+                document.getElementById('workDetailsStatus').textContent = 'Autenticando usuario, por favor espera...';
+                console.log("saveWorkDetails: Autenticación no lista o userId es null. No se guardan los detalles.");
+                return;
+            }
+
+            document.getElementById('workDetailsStatus').textContent = 'Guardando detalles del trabajo...';
+            console.log("saveWorkDetails: Intentando guardar detalles del trabajo para", window.currentWorkId, "por usuario", window.userId);
+            try {
+                const details = {
+                    customName: document.getElementById('workCustomNameInput').value,
+                    ideaName: document.getElementById('ideaNameInput').value,
+                    brandName: document.getElementById('brandNameInput').value
+                };
+
+                const docRef = doc(window.db, `artifacts/${window.appId}/public/data/agripina_work_details`, window.currentWorkId);
+                await setDoc(docRef, details, { merge: true }); 
+                document.getElementById('workDetailsStatus').textContent = 'Detalles guardados con éxito!';
+                console.log("saveWorkDetails: Detalles del trabajo guardados con éxito.");
+                setTimeout(() => document.getElementById('workDetailsStatus').textContent = '', 3000);
+            } catch (e) {
+                console.error("saveWorkDetails: Error al guardar los detalles del trabajo: ", e);
+                document.getElementById('workDetailsStatus').textContent = `Error al guardar: ${e.message}. Revisa la consola.`;
+            }
+        };
+
+        window.saveVote = async function() {
+            if (!window.isAuthReady || window.userId === null) {
+                document.getElementById('saveStatus').textContent = 'Autenticando usuario, por favor espera...';
+                console.log("saveVote: Autenticación no lista o userId es null. No se guarda la votación.");
+                return;
+            }
+
+            document.getElementById('saveStatus').textContent = 'Guardando votación...';
+            console.log("saveVote: Intentando guardar votación para el trabajo", window.currentWorkId, "por usuario", window.userId);
+            try {
+                const voteData = {};
+                window.criteriaData.forEach(c => { // Acceder a criteriaData global
+                    voteData[c.id] = c.score;
+                });
+
+                const docRef = doc(window.db, `artifacts/${window.appId}/public/data/agripina_votes_by_work/${window.currentWorkId}/votes`, window.userId);
+                await setDoc(docRef, voteData);
+                document.getElementById('saveStatus').textContent = 'Votación guardada con éxito!';
+                console.log("saveVote: Votación guardada con éxito.");
+                setTimeout(() => document.getElementById('saveStatus').textContent = '', 3000);
+            } catch (e) {
+                console.error("saveVote: Error al guardar la votación: ", e);
+                document.getElementById('saveStatus').textContent = `Error al guardar: ${e.message}. Revisa la consola.`;
+            }
+        };
+        
+        window.fetchAndPopulateAllWorkDetails = async function() {
+            if (!window.isAuthReady) {
+                console.log("fetchAndPopulateAllWorkDetails: Autenticación no lista. No se cargan todos los detalles de los trabajos.");
+                return;
+            }
+            console.log("fetchAndPopulateAllWorkDetails: Intentando cargar todos los detalles de los trabajos desde Firestore.");
+            try {
+                const q = query(collection(window.db, `artifacts/${window.appId}/public/data/agripina_work_details`));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    console.log("fetchAndPopulateAllWorkDetails: No se encontraron detalles de trabajos en Firestore. Usando datos iniciales.");
+                } else {
+                    console.log("fetchAndPopulateAllWorkDetails: Detalles de trabajos encontrados en Firestore. Actualizando worksData.");
+                }
+
+                querySnapshot.forEach((doc) => {
+                    const workId = doc.id;
+                    const details = doc.data();
+                    const workIndex = window.worksData.findIndex(w => w.id === workId); // Acceder a worksData global
+                    if (workIndex > -1) {
+                        window.worksData[workIndex].customName = details.customName || '';
+                        window.worksData[workIndex].ideaName = details.ideaName || '';
+                        window.worksData[workIndex].brandName = details.brandName || '';
+                    }
+                });
+                window.populateWorkSelector(); // Llamar a función global
+                window.loadUserVote(); // Llamar a función global
+                window.loadWorkDetails(); // Llamar a función global
+            } catch (e) {
+                console.error("fetchAndPopulateAllWorkDetails: Error al cargar todos los detalles de los trabajos: ", e);
+            }
+        };
+
+        window.setupGlobalResultsListener = function() {
+            if (window.globalResultsUnsubscribe) {
+                window.globalResultsUnsubscribe(); // Desuscribirse del listener anterior
+                console.log("setupGlobalResultsListener: Listener global de resultados anterior desuscrito.");
+            }
+            if (!window.isAuthReady) {
+                console.log("setupGlobalResultsListener: Autenticación no lista. No se configura el listener global.");
+                return;
+            }
+            console.log("setupGlobalResultsListener: Configurando listener global de resultados para el trabajo", window.currentWorkId);
+            const q = query(collection(window.db, `artifacts/${window.appId}/public/data/agripina_votes_by_work/${window.currentWorkId}/votes`));
+            
+            window.globalResultsUnsubscribe = onSnapshot(q, (snapshot) => {
+                let totalScores = {};
+                let voteCount = 0;
+
+                window.criteriaData.forEach(c => totalScores[c.id] = 0); // Acceder a criteriaData global
+
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    voteCount++;
+                    window.criteriaData.forEach(c => { // Acceder a criteriaData global
+                        if (data[c.id] !== undefined) {
+                            totalScores[c.id] += data[c.id];
+                        }
+                    });
+                });
+
+                const averageScores = window.criteriaData.map(c => // Acceder a criteriaData global
+                    voteCount > 0 ? (totalScores[c.id] / voteCount) : 0
+                );
+                const overallAverage = averageScores.reduce((sum, avg) => sum + avg, 0) / window.criteriaData.length; // Acceder a criteriaData global
+
+                if (window.barChart) { // Acceder a barChart global
+                    window.barChart.data.datasets[0].data = averageScores;
+                    window.barChart.update();
+                }
+                document.getElementById('globalAverageScore').textContent = overallAverage.toFixed(2);
+                document.getElementById('numVotes').textContent = voteCount;
+                console.log(`setupGlobalResultsListener: Resultados globales actualizados para trabajo ${window.currentWorkId}. Votos: ${voteCount}, Media: ${overallAverage.toFixed(2)}`);
+            }, (error) => {
+                console.error("setupGlobalResultsListener: Error al escuchar resultados globales:", error);
+            });
+        };
+
+        window.setupWorkDetailsListener = function() {
+            if (window.workDetailsUnsubscribe) {
+                window.workDetailsUnsubscribe(); // Desuscribirse del listener anterior
+                console.log("setupWorkDetailsListener: Listener de detalles de trabajo anterior desuscrito.");
+            }
+            if (!window.isAuthReady) {
+                console.log("setupWorkDetailsListener: Autenticación no lista. No se configura el listener de detalles de trabajo.");
+                return;
+            }
+            console.log("setupWorkDetailsListener: Configurando listener de detalles de trabajo para todos los trabajos.");
+            const q = query(collection(window.db, `artifacts/${window.appId}/public/data/agripina_work_details`));
+            
+            window.workDetailsUnsubscribe = onSnapshot(q, (snapshot) => {
+                snapshot.docChanges().forEach(change => {
+                    const workId = change.doc.id;
+                    const details = change.doc.data();
+                    const workIndex = window.worksData.findIndex(w => w.id === workId); // Acceder a worksData global
+
+                    if (workIndex > -1) {
+                        window.worksData[workIndex].customName = details.customName || '';
+                        window.worksData[workIndex].ideaName = details.ideaName || '';
+                        window.worksData[workIndex].brandName = details.brandName || '';
+                        console.log(`setupWorkDetailsListener: Detalles del trabajo ${workId} actualizados:`, details);
+
+                        const workSelector = document.getElementById('workSelector');
+                        const option = workSelector.querySelector(`option[value="${workId}"]`);
+                        if (option) {
+                            option.textContent = window.worksData[workIndex].customName || window.worksData[workIndex].name;
+                        }
+
+                        // Si los detalles del trabajo actualmente seleccionado cambiaron, actualizar los inputs
+                        if (workId === window.currentWorkId) {
+                            document.getElementById('workCustomNameInput').value = window.worksData[workIndex].customName;
+                            document.getElementById('ideaNameInput').value = window.worksData[workIndex].ideaName;
+                            document.getElementById('brandNameInput').value = window.worksData[workIndex].brandName;
+                        }
+                    }
+                });
+            }, (error) => {
+                console.error("setupWorkDetailsListener: Error al escuchar detalles de trabajos:", error);
+            });
+        };
+
+        // Este listener se mantiene aquí para iniciar la carga de datos de Firebase
+        // una vez que la autenticación esté lista.
+        document.addEventListener('firebaseAuthReady', () => {
+            console.log("firebaseAuthReady: Evento recibido. Iniciando carga de datos de Firebase.");
+            window.fetchAndPopulateAllWorkDetails(); 
+            window.setupGlobalResultsListener(); 
+            window.setupWorkDetailsListener(); 
+        });
+
+    </script>
+
+    <!-- Estilos CSS -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f7f4;
+            color: #3d3d3d;
+        }
+        .slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #2c5282;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: background-color 0.2s ease-in-out;
+        }
+        input[type='range']::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #2c5282;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        input[type='range']::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #2c5282;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            height: auto;
+            min-height: 300px;
+            margin: auto;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                min-height: 400px;
+            }
+        }
+        .bar-chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 700px;
+            height: auto;
+            min-height: 350px;
+            margin: auto;
+        }
+        @media (min-width: 768px) {
+            .bar-chart-container {
+                min-height: 450px;
+            }
+        }
+    </style>
 </body>
 </html>
